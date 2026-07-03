@@ -1,182 +1,180 @@
-<p align="center">
-  <img src="assets/logo.svg" width="128" height="128" alt="Auto-FreeCF logo">
-</p>
+# Auto-FreeCF
 
-<h1 align="center">Auto-FreeCF</h1>
-<p align="center">Cloudflare Workers AI Account ID and token collector with explicit automation modes.</p>
+Cloudflare Workers AI account automation via Google Workspace SSO.
 
-<p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-v1.0.0-181717?style=flat-square">
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square">
-  <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white">
-  <img alt="Mode" src="https://img.shields.io/badge/browser-none-ff6b35?style=flat-square">
-  <img alt="Cloudflare" src="https://img.shields.io/badge/Cloudflare-Workers%20AI-F38020?style=flat-square&logo=cloudflare&logoColor=white">
-</p>
+## ⚠️ IMPORTANT: Google Workspace Required
 
-<p align="center">
-  <a href="#features"><img alt="Features" src="https://img.shields.io/badge/%E2%9C%A8-features-181717?style=flat-square"></a>
-  <a href="#quick-start"><img alt="Quick Start" src="https://img.shields.io/badge/%E2%9A%A1-quick%20start-2ea44f?style=flat-square"></a>
-  <a href="#automation-modes"><img alt="Automation Modes" src="https://img.shields.io/badge/%F0%9F%A7%A9-automation%20modes-ff6b35?style=flat-square"></a>
-  <a href="#exports"><img alt="Exports" src="https://img.shields.io/badge/%F0%9F%93%A6-exports-3776AB?style=flat-square"></a>
-</p>
+This tool **requires** a Google Workspace account with domain-wide delegation enabled. It will create users in your Google Workspace domain, then attempt to link them to Cloudflare accounts.
 
-## Features
+**Why Google Workspace?**
+- Cloudflare does not expose a public API for account creation
+- Google Workspace provides programmatic user creation via Admin SDK
+- Users created in Google Workspace can be used for Cloudflare SSO signup
 
-- Collects Cloudflare **Account ID** from an existing API token.
-- Verifies token status through Cloudflare's official API.
-- Tests Workers AI access against a real model endpoint.
-- Exports clean JSON and CSV rows for downstream routing or manual injection.
-- Supports single token, token file, and `CF_API_TOKEN` environment variable.
-- Documents full automation requirements without pretending Cloudflare signup has a public API.
-- No Playwright, Puppeteer, Selenium, or full browser runtime.
+## Prerequisites
 
-## Quick Start
+1. **Google Workspace account** with:
+   - Admin access to create users
+   - Domain-wide delegation enabled for service account
+   - Custom domain (e.g., `yourcompany.com`)
+
+2. **Google Cloud Service Account** with:
+   - Admin SDK API enabled
+   - Domain-wide delegation configured
+   - Scopes: `admin.directory.user`
+
+3. **Python 3.10+**
+
+## Setup
+
+### 1. Create Google Cloud Service Account
 
 ```bash
-git clone https://github.com/mocasus/Auto-FreeCF.git
-cd Auto-FreeCF
+# Go to Google Cloud Console
+# https://console.cloud.google.com/iam-admin/serviceaccounts
+
+# Create service account
+# Download JSON key file
+# Enable "Admin SDK API"
+```
+
+### 2. Enable Domain-Wide Delegation
+
+```bash
+# Go to Google Workspace Admin Console
+# https://admin.google.com/ac/owl/domainwidedelegation
+
+# Add service account client ID
+# Add scopes:
+#   https://www.googleapis.com/auth/admin.directory.user
+#   https://www.googleapis.com/auth/admin.directory.user.readonly
+```
+
+### 3. Install Dependencies
+
+```bash
+cd /root/cf-account-bot
 python3 -m venv venv
-venv/bin/pip install -e .
+venv/bin/pip install -r requirements.txt
 ```
 
-Run with one token:
+## Usage
+
+### Create Google Workspace Users
 
 ```bash
-CF_API_TOKEN='YOUR_CLOUDFLARE_WORKERS_AI_TOKEN' auto-freecf
+./run.sh \
+  --service-account /path/to/service-account.json \
+  --delegated-email admin@yourcompany.com \
+  --domain yourcompany.com \
+  --count 5
 ```
 
-Run with many tokens:
+This will:
+1. Create 5 Google Workspace users (e.g., `abc123@yourcompany.com`)
+2. Save credentials to `accounts.json`
+3. Print instructions for manual CF account creation
+
+### Extract Cloudflare Account IDs
+
+After manually creating CF accounts with the Google Workspace emails:
 
 ```bash
-printf '%s\n' 'TOKEN_1' 'TOKEN_2' > tokens.txt
-auto-freecf --token-file tokens.txt
+# Create tokens.txt with one CF API token per line
+echo "YOUR_CF_TOKEN_1" > tokens.txt
+echo "YOUR_CF_TOKEN_2" >> tokens.txt
+
+# Extract Account IDs and test Workers AI
+./run.sh --token-file tokens.txt
 ```
 
-Skip live Workers AI model test:
+Output:
+- `exports/workers_ai_accounts.json`
+- `exports/workers_ai_accounts.csv`
 
-```bash
-auto-freecf --token-file tokens.txt --no-test
-```
+## Workflow
 
-## Automation Modes
+### Automated Part
+1. ✅ Create Google Workspace users via Admin SDK
+2. ✅ Save credentials to JSON
+3. ✅ Extract CF Account IDs from existing tokens
+4. ✅ Test Workers AI access
 
-Auto-FreeCF is explicit about what each mode can and cannot do.
+### Manual Part (Required)
+1. ⚠️ Go to https://dash.cloudflare.com/sign-up
+2. ⚠️ Click "Sign up with Google"
+3. ⚠️ Login with Google Workspace email
+4. ⚠️ Create Workers AI API token
+5. ⚠️ Add token to `tokens.txt`
 
-**Mode: `manual-token`**
+## Why Manual CF Creation?
 
-Implemented now. You manually create or paste a Cloudflare Workers AI token, then the tool extracts and verifies:
+Cloudflare's signup endpoint (`dash.cloudflare.com/sign-up`) is protected by:
+- Managed Challenge (blocks VPS/datacenter IPs)
+- No public API for account creation
+- Session-based authentication required
 
-- user email, when token permission allows it
-- account name
-- account ID
-- Workers AI access status
-- token-to-account mapping
+Even with Google Workspace automation, the final CF account creation step requires browser interaction from a residential IP.
 
-```bash
-auto-freecf --mode manual-token --token-file tokens.txt
-```
+## Output Format
 
-**Mode: `session-import`**
-
-Design path for full automation without full browser runtime. Required inputs:
-
-- logged-in Cloudflare dashboard session cookie exported from your own browser or phone
-- CSRF/session headers captured from the dashboard
-- HTTP client with browser TLS fingerprinting, such as `curl_cffi`
-
-This mode can automate dashboard API actions after you provide an authenticated session. It avoids driving a browser, but still requires a legitimate login session.
-
-**Mode: `solver-assisted`**
-
-Design path for account creation from zero. Required components:
-
-- residential or mobile IP pool
-- Cloudflare managed-challenge clearance provider
-- Turnstile solver, when the flow exposes a widget token
-- temp-mail inbox with verification link extraction
-- retry limits and cooldown logic
-
-Cloudflare's dashboard signup is protected by Cloudflare Managed Challenge. There is no public API for creating new dashboard users from zero. Pure HTTP from a VPS receives `403 Just a moment...` before the normal signup flow.
-
-Print requirements:
-
-```bash
-auto-freecf --print-full-auto-requirements
-```
-
-## Exports
-
-Default output files:
-
-```text
-exports/workers_ai_accounts.json
-exports/workers_ai_accounts.csv
-```
-
-Example row:
-
+### accounts.json (Google Workspace users)
 ```json
-{
-  "email": "account@example.com",
-  "account_id": "023e105f4ecef8ad9ca31a8372d0c353",
-  "account_name": "example@example.com's Account",
-  "api_token": "...",
-  "workers_ai_ok": true,
-  "workers_ai_error": null
-}
+[
+  {
+    "email": "abc123@yourcompany.com",
+    "password": "RandomPassword123!",
+    "google_user_id": "1234567890",
+    "account_id": null,
+    "api_token": null,
+    "created_at": "2025-01-15 10:30:00",
+    "status": "google_workspace_created"
+  }
+]
 ```
 
-## Workers AI Test
-
-The default test calls:
-
-```text
-POST /client/v4/accounts/{account_id}/ai/run/@cf/meta/llama-3.1-8b-instruct
+### exports/workers_ai_accounts.json (CF accounts)
+```json
+[
+  {
+    "email": "abc123@yourcompany.com",
+    "account_id": "abc123def456",
+    "account_name": "My Account",
+    "api_token": "YOUR_CF_TOKEN",
+    "workers_ai_ok": true,
+    "workers_ai_error": null
+  }
+]
 ```
 
-Change model:
+## Security Notes
 
-```bash
-auto-freecf --token-file tokens.txt --model '@cf/qwen/qwen2.5-coder-32b-instruct'
-```
+- **Never commit** `service-account.json` or `tokens.txt` to git
+- **Rotate** service account keys regularly
+- **Limit** service account scopes to minimum required
+- **Monitor** Google Workspace user creation logs
+- **Delete** unused Google Workspace users
 
-## Token Permissions
+## Troubleshooting
 
-Create a Cloudflare API token from the dashboard with Workers AI permission for the target account. If `workers_ai_ok` is false, recreate the token with the correct Workers AI scope.
+### "Domain-wide delegation not enabled"
+- Go to Google Workspace Admin Console
+- Enable domain-wide delegation for service account
+- Wait 5-10 minutes for propagation
 
-## Root Cause Notes
+### "Insufficient permissions"
+- Ensure delegated email has admin privileges
+- Check service account has correct scopes
+- Verify Admin SDK API is enabled
 
-Observed from VPS:
+### "User already exists"
+- Google Workspace user already exists in domain
+- Use different username or delete existing user
 
-```text
-GET https://dash.cloudflare.com/sign-up
-status: 403
-title: Just a moment...
-cf_clearance: false
-```
-
-This means the blocker is Cloudflare's own managed challenge on the dashboard, not a normal public API error. Official Cloudflare docs also state API token creation by API requires an existing token with token-creation permission.
-
-## CLI
-
-```bash
-auto-freecf --help
-```
-
-Important options:
-
-```text
---token TOKEN
---token-file tokens.txt
---mode manual-token|session-import|solver-assisted
---model @cf/...
---no-test
---out-json path.json
---out-csv path.csv
-```
+### "CF account creation failed"
+- Expected: CF requires manual browser creation
+- Follow manual steps in workflow section
 
 ## License
 
 MIT
-
-<p align="center"><sub>v1.0.0 · 2026 · Built by <a href="https://github.com/mocasus">@mocasus</a></sub></p>

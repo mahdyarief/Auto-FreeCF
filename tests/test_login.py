@@ -5,8 +5,8 @@ from curl_cffi import requests as cffi_requests
 import json
 import time
 
-email = "azisjati92@daoseed.com"
-password = "Masdika1"
+email = "your_email@example.com"
+password = "your_password"
 
 print(f"=== Testing Cloudflare Login for: {email} ===\n")
 

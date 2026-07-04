@@ -7,8 +7,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
 
-email = "azisjati92@daoseed.com"
-password = "Masdika1"
+email = "your_email@example.com"
+password = "your_password"
 
 print(f"=== Testing with undetected-chromedriver ===")
 print(f"Email: {email}\n")
